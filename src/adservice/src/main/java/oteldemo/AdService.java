@@ -28,9 +28,18 @@ import io.opentelemetry.instrumentation.annotations.WithSpan;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+
+import io.opentelemetry.instrumentation.kafkaclients.v2_6.TracingProducerInterceptor;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.serialization.ByteArraySerializer;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,6 +55,8 @@ import dev.openfeature.sdk.EvaluationContext;
 import dev.openfeature.sdk.MutableContext;
 import dev.openfeature.sdk.OpenFeatureAPI;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 
 public final class AdService {
@@ -92,7 +103,7 @@ public final class AdService {
     FlagdProvider flagdProvider = new FlagdProvider(options);
     // Set flagd as the OpenFeature Provider
     OpenFeatureAPI.getInstance().setProvider(flagdProvider);
-  
+
     server =
         ServerBuilder.forPort(port)
             .addService(new AdServiceImpl())
@@ -131,12 +142,12 @@ public final class AdService {
   }
 
   private static class AdServiceImpl extends oteldemo.AdServiceGrpc.AdServiceImplBase {
-    
+
     private static final String ADSERVICE_FAILURE = "adServiceFailure";
     private static final String ADSERVICE_MANUAL_GC_FEATURE_FLAG = "adServiceManualGc";
     private static final String ADSERVICE_HIGH_CPU_FEATURE_FLAG = "adServiceHighCpu";
     Client ffClient = OpenFeatureAPI.getInstance().getClient();
-    
+
     private AdServiceImpl() {}
 
     /**
@@ -206,6 +217,20 @@ public final class AdService {
           logger.warn("Feature Flag " + ADSERVICE_MANUAL_GC_FEATURE_FLAG + " enabled, performing a manual gc now");
           GarbageCollectionTrigger gct = new GarbageCollectionTrigger();
           gct.doExecute();
+        }
+
+        var c = kafkaClient();
+        try {
+          var record = new ProducerRecord<String, String>(
+                  "ad.data",
+                  // mock up some data...
+                  allAds.stream()
+                          .map(Ad::getText)
+                          .collect(Collectors.joining(", "))
+          );
+          c.send(record).get();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
 
         AdResponse reply = AdResponse.newBuilder().addAllAds(allAds).build();
@@ -322,6 +347,22 @@ public final class AdService {
         .putAll("travel", travelTelescope)
         // Keep the books category free of ads to ensure the random code branch is tested
         .build();
+  }
+
+  private static KafkaProducer<String, String> _kafkaClient;
+  private static KafkaProducer<String, String> kafkaClient() {
+    if (_kafkaClient != null) {
+      return _kafkaClient;
+    }
+    Map<String, Object> config = new HashMap<>();
+
+    config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "kafka:9092");
+    config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+    config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+    config.put(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, TracingProducerInterceptor.class.getName());
+
+    _kafkaClient = new KafkaProducer<>(config);
+    return _kafkaClient;
   }
 
   /** Main launches the server from the command line. */
