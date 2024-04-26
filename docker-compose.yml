@@ -77,6 +77,31 @@ services:
         condition: service_started
     logging: *logging
 
+  # Post AdService
+  postadservice:
+    image: ${IMAGE_NAME}:${DEMO_VERSION}-postadservice
+    container_name: postadservice
+    build:
+      context: ./
+      dockerfile: ./src/postadservice/Dockerfile
+      cache_from:
+        - ${IMAGE_NAME}:${IMAGE_VERSION}-postadservice
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+    restart: unless-stopped
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://${OTEL_COLLECTOR_HOST}:${OTEL_COLLECTOR_PORT_HTTP}
+      - OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE
+      - OTEL_RESOURCE_ATTRIBUTES
+      - OTEL_LOGS_EXPORTER=otlp
+      - OTEL_SERVICE_NAME=postadservice
+    depends_on:
+      otelcol:
+        condition: service_started
+    logging: *logging
+
   # Cart service
   cartservice:
     image: ${IMAGE_NAME}:${DEMO_VERSION}-cartservice

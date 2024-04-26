@@ -1,0 +1,18 @@
+spring.cloud.function:
+  definition: readAdData
+spring.cloud.stream:
+  kafka:
+    binder:
+      brokers: kafka:9092
+      configuration:
+        client.dns.lookup: use_all_dns_ips
+    bindings:
+      readAdData:
+        consumer:
+          configuration:
+            key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+            value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
+  bindings:
+    readAdData:
+      destination: ad.data
+      group: postadservice
