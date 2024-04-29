@@ -7,12 +7,12 @@ spring.cloud.stream:
       configuration:
         client.dns.lookup: use_all_dns_ips
     bindings:
-      readAdData:
+      readAdData-in-0:
         consumer:
           configuration:
             key.deserializer: org.apache.kafka.common.serialization.StringDeserializer
             value.deserializer: org.apache.kafka.common.serialization.StringDeserializer
   bindings:
-    readAdData:
+    readAdData-in-0:
       destination: ad.data
       group: postadservice
