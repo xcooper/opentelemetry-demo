@@ -8,6 +8,7 @@ WORKDIR /usr/src/app/
 
 COPY ./src/postadservice/gradlew* ./src/postadservice/settings.gradle* ./src/postadservice/build.gradle ./
 COPY ./src/postadservice/gradle ./gradle
+RUN ./gradlew
 
 COPY ./src/postadservice/ ./
 RUN ./gradlew build
